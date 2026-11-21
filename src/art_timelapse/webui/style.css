@@ -1,0 +1,1287 @@
+/* Sai2-Timelapse🔔 · WebView 界面
+ *
+ * 两套主题：黑（sai-dark）/ 白（sai-light）。键名沿用旧配置，别动 ——
+ * 改了用户存下来的主题就丢了。
+ *
+ * 装饰只有一种母题：铃铛。它承担三个含义 ——
+ *   顶栏 = 品牌 / 录制胶囊 = 正在录 / 日志底纹 = 静默的纹样。
+ * 红色只从铃铛的**下端**渗出来（描边渐变），以及录制中、导出完成两处状态，
+ * 不用作主按钮色 —— 红一旦变成主色，"进行中"这个语义就废了。
+ */
+
+:root {
+  --bg: #111316;
+  --panel: #181b1f;
+  --panel-2: #1f2328;
+  --sunken: #0c0e10;
+  --input: #23272b;
+  --input-border: #363c42;
+  --border: #262b30;
+  --border-strong: #3a4046;
+  --hover: #20252a;
+  --text: #e4e7ea;
+  --muted: #8d949c;
+  --faint: #5c6269;
+  --accent: #6b90ab;
+  --accent-hover: #7ea3bd;
+  --accent-fg: #0d1013;
+  --red: #c25b54;
+  --red-text: #d0706a;
+  --red-dot: #cf5a52;
+  --selection: #2c3a45;
+
+  /* 铃铛描边的三个 stop：顶端中性 → 中段偏暖 → 底端转红。
+     中间那档不能直接从中性插值到红，否则过路色是脏褐色。 */
+  --bell-0: #ccd2d8;
+  --bell-1: #a2908c;
+  --bell-2: #c25b54;
+
+  /* 纹样底纹：mask 出形状，再用这个颜色上色，所以只给色值不给透明度 */
+  --ornament: #e4e7ea;
+  --ornament-alpha: .04;
+
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 12px;
+  color-scheme: dark;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .28);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .22);
+
+  --ease: cubic-bezier(.32, .72, .32, 1);
+  --dur: 150ms;
+}
+
+/* 白：真正的白，不是暖灰。面板比窗口亮一档，日志区再收回一点，
+   输入框给最亮 —— 这样三个层次不靠边框也分得开。 */
+:root[data-theme="sai-light"] {
+  color-scheme: light;
+  --bg: #f3f3f4;
+  --panel: #fcfcfd;
+  --panel-2: #f4f5f6;
+  --sunken: #fafafb;
+  --input: #ffffff;
+  --input-border: #d6d8db;
+  --border: #e3e5e8;
+  --border-strong: #c3c6ca;
+  --hover: #f1f2f4;
+  --text: #1a1c1f;
+  --muted: #6a7078;
+  --faint: #8d939a;
+  --accent: #4a6f8f;
+  --accent-hover: #5b82a2;
+  --accent-fg: #ffffff;
+  --red: #b6483f;
+  --red-text: #a03e36;
+  --red-dot: #c04a40;
+  --selection: #d8e2ea;
+
+  --bell-0: #3f454d;
+  --bell-1: #8d6f6b;
+  --bell-2: #b6483f;
+
+  --ornament: #1a1c1f;
+  --ornament-alpha: .045;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, .06);
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 6px 18px rgba(16, 24, 40, .07);
+}
+
+* { box-sizing: border-box; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+:is(button, input, select, textarea, a[href], [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:is(button, input, select, textarea):disabled,
+:is(.btn, .btn-primary, .btn-danger, .tab, .adv-head)[aria-disabled="true"] {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+:is(.field, .value, .result-name, .result-meta, .modal-path) {
+  user-select: text;
+}
+
+::selection { background: var(--selection); color: var(--text); }
+
+/* 渐变的 stop 颜色。
+ * 漏掉这三行的话 stop-color 会落到默认值黑色 —— 铃铛在深色底上就是一团黑，
+ * 看起来像"图标没加载"，其实形状画出来了只是没上色。 */
+.bell-s0 { stop-color: var(--bell-0); }
+.bell-s1 { stop-color: var(--bell-1); }
+.bell-s2 { stop-color: var(--bell-2); }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+/* ---------------------------------------------------------------- 装饰 */
+/* sprite 只放 <defs>，不占布局 */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* 铃铛描边走渐变。stroke 是继承属性，写在 <svg> 上会透进 <use> 的 shadow tree，
+   所以 symbol 里的路径不用写 stroke，换色只改这一行。 */
+.brand-bell {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  stroke: url(#g-bell);
+  transform-origin: 50% 8%;   /* 绕顶钮摆，不是绕中心 */
+}
+
+/* 只在鼠标进顶栏时摆一下：常驻动画会让人分心，这是"点缀"不是"特效" */
+.appbar:hover .brand-bell {
+  animation: bell-swing 900ms var(--ease);
+}
+
+@keyframes bell-swing {
+  0% { transform: rotate(0); }
+  22% { transform: rotate(-9deg); }
+  46% { transform: rotate(6deg); }
+  70% { transform: rotate(-2.5deg); }
+  100% { transform: rotate(0); }
+}
+
+/* 录制中的铃铛整枚转红，不用渐变 —— 此刻它就是"正在进行"本身。
+   用实心版：13px 的描边叠在浅色胶囊底上会糊成一团。 */
+.pill-bell {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--red);
+  animation: pulse 1.6s var(--ease) infinite;
+}
+
+/* 导出完成的花标。花心靠 CSS 变量传进 shadow tree（选择器进不去，变量能继承）。
+ *
+ * 用 class 控制显隐而不是 hidden 特性：<svg> 是 SVGSVGElement，**没有**
+ * HTMLElement.hidden 属性，`el.hidden = false` 只是挂了个无用的 JS 属性，
+ * HTML 上的 hidden 特性纹丝不动，再被 [hidden]{display:none!important} 一直压着。 */
+.flower-ok {
+  display: none;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  align-self: center;
+  color: var(--red);
+}
+
+.flower-ok.on { display: block; }
+
+/* ---------------------------------------------------------------- 顶栏 */
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px 10px;
+  flex: none;
+}
+
+.appbar h1 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .2px;
+  color: var(--text);
+}
+
+.appbar .ver {
+  font-size: 11.5px;
+  color: var(--faint);
+  padding-top: 1px;
+}
+
+.appbar .spacer { flex: 1; }
+
+/* 录制中的状态胶囊：默认不存在，出现时才占位 */
+.pill {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--red) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  color: var(--red-text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  animation: pill-in 180ms var(--ease);
+}
+
+.pill.on { display: inline-flex; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .38; transform: scale(.86); }
+}
+
+@keyframes pill-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------------------- 页签 */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  flex: none;
+}
+
+.tab {
+  position: relative;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  min-height: 34px;
+  padding: 8px 14px 9px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+.tab:enabled:not([aria-disabled="true"]):hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+
+.tab:focus-visible { outline-offset: -3px; }
+
+.tab[aria-selected="true"] {
+  color: var(--text);
+  background: var(--panel);
+  font-weight: 500;
+  /* 内容区顶边那条 1px 分隔线会横穿到活动页签下面，把页签切成"浮着的一块"。
+   * 抬一层 z-index，再用 1px 的同色投影把那一行盖掉，页签就和内容连成一体了。 */
+  z-index: 1;
+  box-shadow: 0 1px 0 0 var(--panel);
+}
+
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* ---------------------------------------------------------------- 内容区 */
+.content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  /* 兜底：子项（尤其是日志卡片）在极端情况下溢出时，宁可被这里裁掉，
+   * 也不要画到页脚上面去 —— 之前日志行就漏到「主题 / 语言」那一行下面，
+   * 看着像界面散架了。正常高度下不会触发。 */
+  overflow: hidden;
+}
+
+.page {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 16px 10px;
+  overflow-y: auto;
+  /* 内容自适应高度、放不下才滚动；剩余空间留给日志区（和 Tk 版的观感一致） */
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.page.active {
+  display: flex;
+  animation: page-in 160ms var(--ease);
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes preview-in {
+  from { opacity: .65; }
+  to { opacity: 1; }
+}
+
+/* 录制页：左边表单，右边画布预览。
+ *
+ * 表单行本身只有「标签 + 控件」，1fr 全给了控件，右边空着一大片。把预览挪过来
+ * 既填了这块，也让用户录制前能确认「抓的是不是这个画布」—— 这是真功能，不是装饰。
+ * 导出页保持单栏：那边一行是路径、一行是摘要，本来就没有横向空间可浪费。 */
+#page0 { flex-direction: row; align-items: flex-start; gap: 16px; }
+
+#page0 > .page-main {
+  flex: 1;
+  min-width: 0;             /* 少了这行，长路径会把右栏挤扁 */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#page0 > .page-side {
+  flex: none;
+  width: 208px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.side-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  letter-spacing: .3px;
+  color: var(--muted);
+}
+
+.side-size {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 窗口尺寸固定，展开面板放不下的部分就由 .page 自己滚。
+ * 滚动条出现时会给内容让出 10px —— 不留 gutter 的话，点一下「高级设置」
+ * 整个表单会横向抖一下。 */
+.page { scrollbar-gutter: stable; }
+
+/* 表单行：标签列固定宽，控件占满 —— 和原来的对齐方式一致。
+ * --label-w 由 JS 按当前语言里最长的那条标签算出来（中/英/日长度差很多）。 */
+.row {
+  display: grid;
+  grid-template-columns: var(--label-w, 96px) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 3px 0;
+}
+
+.row > label {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 列宽封顶后仍放不下的标签（日语最容易撞上）改成两行 ——
+ * 宁可行高撑开一点，也别用省略号把字吞掉。 */
+.row > label.wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+/* 量标签宽度用的探针：不参与布局、不可见，但照常排版文字 ——
+ * 隐藏页签里的标签也能量准（见 app.js 的 fitLabelColumn）。 */
+#labelProbe {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.row .value {
+  color: var(--text);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row .value.empty { color: var(--faint); }
+
+/* 只读值为空时给一个破折号：否则那一行看着像没渲染出来 */
+.row .value.empty:empty::after { content: "—"; }
+
+.field-wrap { display: flex; gap: 6px; min-width: 0; }
+
+/* ---------------------------------------------------------------- 控件 */
+.field {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--input-border);
+  background: var(--input);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+.field:enabled:hover { border-color: var(--border-strong); }
+
+.field:enabled:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.field::placeholder { color: var(--faint); }
+
+/* 复选框也是 .row 这个 grid 的直接子项，默认 justify-self: stretch 会把它的盒子
+ * 拉满整列 —— 浏览器把那个小方框画在盒子正中，看起来就像飘在行中间、跟标签脱节。
+ * 让它只占自身宽度、靠左对齐。 */
+.check {
+  justify-self: start;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+select.field {
+  appearance: none;
+  padding-right: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 14px) center, calc(100% - 9px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+:is(.btn, .btn-primary, .btn-danger) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              transform 60ms var(--ease), color var(--dur) var(--ease);
+}
+
+:is(.btn, .btn-primary, .btn-danger):enabled:not([aria-disabled="true"]):not([aria-busy="true"]):hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+}
+
+:is(.btn, .btn-primary, .btn-danger):enabled:not([aria-disabled="true"]):not([aria-busy="true"]):active {
+  transform: scale(.985);
+}
+
+:is(.btn, .btn-primary, .btn-danger):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+:is(.btn, .btn-primary, .btn-danger):is(:disabled, [aria-disabled="true"]) {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+:is(.btn-primary, .btn-danger) {
+  min-width: 132px;
+  height: 40px;
+  padding: 0 18px;
+  font-weight: 600;
+  font-size: 13px;
+  border-radius: var(--radius);
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:enabled:not([aria-disabled="true"]):not([aria-busy="true"]):hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn-danger {
+  background: color-mix(in srgb, var(--red) 14%, var(--panel));
+  border-color: var(--red);
+  color: var(--red-text);
+}
+
+.btn-danger:enabled:not([aria-disabled="true"]):not([aria-busy="true"]):hover {
+  background: color-mix(in srgb, var(--red) 24%, var(--panel));
+  border-color: var(--red);
+}
+
+.btn-ghost {
+  padding: 0 9px;
+  font-size: 11.5px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.btn-ghost:enabled:not([aria-disabled="true"]):not([aria-busy="true"]):hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* 忙碌仅作用于按钮；状态容器和进度区域不会跟着旋转。 */
+button[aria-busy="true"] { cursor: progress; }
+button[aria-busy="true"]::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: button-spin 700ms linear infinite;
+}
+
+@keyframes button-spin { to { transform: rotate(360deg); } }
+
+.action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 0 2px;
+}
+
+.action-primary {
+  margin-top: 8px;
+  padding-top: 12px;
+  padding-left: calc(var(--label-w, 96px) + 10px);
+  border-top: 1px solid var(--border);
+}
+
+.action-primary > :is(.btn, .btn-primary, .btn-danger) {
+  min-width: 132px;
+  height: 40px;
+}
+
+.action-primary > .btn-ghost {
+  min-width: 0;
+  height: 34px;
+  margin-left: auto;
+}
+
+/* 面板里的操作（恢复默认）跟字段列对齐。不缩进的话它贴在页面最左边，
+ * 上面几行都从字段列开始，它像是从别处掉下来的。 */
+.adv .action { padding-left: calc(var(--label-w, 96px) + 10px); }
+
+/* 导出进度条。只在导出时出现，其余时间整块 hidden（[hidden] 要显式写，
+ * 因为 .exp-progress 自己就是 display: flex，特性选择器的默认 display: none
+ * 会被类选择器盖掉）。 */
+.exp-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 8px;
+}
+.exp-progress[hidden] { display: none; }
+
+.exp-track {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--sunken);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.exp-fill {
+  width: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  /* 后端每 150ms 回传一次进度。动画比轮询间隔略长，下一次更新插进上一次
+   * 还没走完的过渡里，看上去是连续的推进，而不是一格一格跳。 */
+  transition: width 200ms linear;
+}
+
+.exp-pct {
+  flex: none;
+  min-width: 92px;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- 折叠区 */
+.adv { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 2px; }
+
+.adv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 6px;
+  margin: 0 -6px;
+  width: calc(100% + 12px);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.adv-head:hover { background: var(--hover); color: var(--text); }
+
+.adv-head:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.adv-head .chev {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  transition: transform 180ms var(--ease);
+}
+
+.adv-head[aria-expanded="true"] .chev { transform: rotate(90deg); }
+
+/* 折叠动画用 max-height 而不是 grid-template-rows:
+ * 后者在「父容器高度受限」时会把 1fr 解析成剩余空间，内容直接被裁掉一截。 */
+.adv-body {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  /* 收起后里面的控件不该还能被 Tab 聚焦 —— max-height: 0 只是视觉上藏起来，
+   * 输入框照样在 tab 序列里。visibility 参与焦点判定，过渡完再真正隐藏。 */
+  visibility: hidden;
+  transition: max-height 220ms var(--ease), opacity 160ms var(--ease),
+              visibility 0s linear 220ms;
+}
+
+.adv-body.open {
+  max-height: 1200px;
+  opacity: 1;
+  visibility: visible;
+  transition: max-height 220ms var(--ease), opacity 160ms var(--ease),
+              visibility 0s;
+}
+
+/* ---------------------------------------------------------------- 日志 */
+.log-card {
+  /* 吃满剩余高度 —— 一开始试过封顶 320px，结果空白没消失，只是从卡片内部
+   * 挪到了卡片外面（卡片下面空 95px），反而更像"页面没铺满"。
+   * 填满才是对的：日志区大不是问题，"大而空"才是。空的时候靠 .log-empty
+   * 放一句提示，就不会像一块荒地。
+   * max-height 只在窗口被拉到特别高（>1100）时兜底。原来是 420，可默认窗口
+   * 就有 916 高 —— 日志区要 455 才填满，被卡在 420，卡片底下平白空出 35px，
+   * 正是上面说的那种"空白"。抬到 560 之后常见尺寸都不触发。 */
+  flex: 1 1 0;
+  min-height: 120px;
+  max-height: 560px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  margin: 10px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--sunken);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  /* 日志区是整页最重的一块（纹样 + 滚动 + 每 150ms 追加行）。contain 把它的
+   * 重排/重绘范围锁在自己身上：追加一行日志不该让外面的表单行跟着重新布局。
+   * 它本来就 overflow: hidden，加 paint 不改变任何可见行为。 */
+  contain: layout paint;
+}
+
+/* 铃铛纹样底纹。
+ *
+ * 用 mask 而不是直接 background-image：mask 只出形状，颜色由 --ornament 给，
+ * 切主题时不用换一份 data URI。这也让纹样能跟着主题从"浅色压深底"翻成"深色压浅底"。
+ *
+ * 铺在 .log-card 上而不是 .log-body：日志滚动时纹样应该定住不动，
+ * 跟着文字滚会像水印在漂。 */
+.log-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ornament);
+  opacity: var(--ornament-alpha);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg transform='translate(48 48)' fill='none' stroke='%23000' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3C9 3 7.2 5.4 7.2 8.2V13L5.4 16H18.6L16.8 13V8.2C16.8 5.4 15 3 12 3Z'/%3E%3Cpath d='M9.9 18A2.1 2.1 0 0 0 14.1 18'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-size: 120px 120px;
+  -webkit-mask-repeat: repeat;
+  pointer-events: none;
+}
+
+/* 拖窗口边缘改变大小时，每一帧都要按新尺寸重排重绘。纹样要重新平铺 mask、
+ * 卡片的投影要重算模糊半径 —— 这两件都在这一帧的临界路径上，而它们纯装饰，
+ * 拖动过程中根本看不出差别。JS 在 resize 开始时挂 .is-resizing，停手 180ms 后摘掉。
+ *
+ * 用 display: none 而不是 opacity: 0：opacity 为 0 的图层照样参与合成，
+ * mask 该铺还得铺，等于没省。 */
+body.is-resizing .log-card::before { display: none; }
+body.is-resizing .log-card { box-shadow: none; }
+
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 55%, var(--sunken));
+  flex: none;
+  position: relative;
+  z-index: 1;
+}
+
+.log-head .title {
+  font-size: 11.5px;
+  letter-spacing: .3px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.log-head .spacer { flex: 1; }
+
+.log-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 12px 10px;
+  font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+  user-select: text;
+  cursor: text;
+  scrollbar-gutter: stable;
+  position: relative;
+  z-index: 1;
+}
+
+/* 异常堆栈里常有一长串没有空格的类名（Microsoft.Web.WebView2.Core.xxx），
+ * 只靠 word-break 不够，必须 overflow-wrap: anywhere 才会断行 */
+.log-body .line {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.log-body .line .ts { color: var(--faint); margin-right: 8px; }
+.log-body .line.warning { color: #c9a227; }
+.log-body .line.error { color: var(--red-text); }
+.log-body .line.notice { color: var(--accent); }
+
+/* 日志空态。
+ * 绝对定位而不是当成 .log-body 的第一个子元素：.log-body 是可滚动容器，
+ * 放进去的话它会被 appendLog 的 innerHTML = '' 清掉，而且滚动时跟着跑。
+ * 压在卡片上就稳了 —— 有内容时 .hidden 摘掉即可。 */
+.log-empty {
+  position: absolute;
+  inset: 34px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 1;
+}
+.log-empty[hidden] { display: none; }
+
+/* 细滚动条，和整体一致 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); background-clip: content-box; }
+
+/* ---------------------------------------------------------------- 底栏 */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  flex: none;
+}
+
+.footer .spacer { flex: 1; }
+
+.footer label { color: var(--muted); font-size: 11.5px; }
+
+/* 反馈入口：底栏常驻，视觉上比 label 稍轻 —— 它是个可选动作，
+ * 不该和「主题/语言」两个设置抢注意力。悬停才显出边界。 */
+.feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+.feedback b {
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+/* 悬浮条开启时数字变强调色 —— 一个开关光看文字「开/关」还是慢，颜色一眼就知道 */
+#floatBtn.on b { color: var(--accent); }
+.feedback:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--panel);
+}
+.feedback:active { transform: translateY(1px); }
+.feedback:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.footer select {
+  height: 26px;
+  padding: 0 22px 0 8px;
+  font-size: 11.5px;
+}
+
+/* 预览缩略图 */
+.preview {
+  /* 原来挤在高级设置里是 128×74 的小方块；挪到右栏之后给足高度，
+   * 画布细节能看清，才谈得上「确认抓的是不是这个画布」。 */
+  width: 100%;
+  height: 196px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--sunken);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 11px;
+  text-align: center;
+  padding: 6px;
+  overflow: hidden;
+  flex: none;
+  box-shadow: var(--shadow-sm);
+}
+
+.preview img {
+  /* 撑满再按比例缩 —— 小画布（几十像素）不这么写就只显示原尺寸，
+   * 缩在 196px 的框中间一小块，等于没预览。 */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  border-radius: calc(var(--radius) - 2px);
+  /* 切画布换图时淡入一下，避免"啪"地整块替换。只动透明度，不触发重排。 */
+  animation: preview-in 180ms var(--ease);
+}
+
+/* 成片卡片。导出是"等了几十秒"的操作，收尾该给一个明确的东西看，
+ * 而不是只有一行路径 + 一朵小花。 */
+.result-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--sunken);
+  box-shadow: var(--shadow-sm);
+  animation: result-in 220ms var(--ease);
+}
+.result-card[hidden] { display: none; }
+
+.result-thumb {
+  flex: none;
+  width: 96px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--panel);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.result-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.result-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.result-name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes result-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+/* 隐藏滚动条但保留滚动能力（内容区在矮窗口下不该被裁） */
+.page::-webkit-scrollbar { width: 10px; }
+
+.hint {
+  padding: 2px 0 0 calc(var(--label-w, 96px) + 10px);
+  color: var(--muted);
+  font-size: 11.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 单瓣当项目符号。这是设计里唯一的"行内标记"用法：
+ * 全屏只有热键提示这一行是"通知"性质，其余都是数据。
+ *
+ * 这个尺寸下必须用**实心**花瓣：8px 宽还要画 1.6 的描边，出来就是一根竖条
+ * （设计清单里"26px 以下改用实心花瓣"是同一条道理）。 */
+.hint::before {
+  content: "";
+  width: 9px;
+  height: 11px;
+  flex: none;
+  background: var(--accent);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='20' viewBox='0 0 16 20'%3E%3Cpath d='M8 1C12 6 12 13 8 19C4 13 4 6 8 1Z' fill='%23000'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
+.hint.off { display: none; }
+
+/* 暂停中：按钮变成「继续」，用强调色描边 —— 录制停了但会话还开着，
+ * 这个区别得看得出来，否则用户以为已经结束了。 */
+#pauseBtn.paused {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
+}
+
+/* 胶囊在暂停时压成中性色，并把红点的呼吸停掉 —— 那个动画的意思是
+ * 「还在录」，暂停了再闪就是在骗人。 */
+.pill.paused {
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  border-color: color-mix(in srgb, var(--muted) 38%, transparent);
+  color: var(--muted);
+}
+.pill.paused .pill-bell { animation: none; color: var(--muted); }
+
+/* ------------------------------------------------------------ 确认对话框 */
+/* 遮罩不用 backdrop-filter：弹出那一帧要重算整个窗口的模糊，正是前面在
+ * resize 时好不容易摘掉的那类开销。纯色压暗就够了。 */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 48%, transparent);
+  animation: mask-in 120ms var(--ease);
+}
+
+.modal {
+  width: min(392px, calc(100vw - 48px));
+  padding: 18px 20px 16px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .45);
+  animation: modal-in 160ms var(--ease);
+}
+
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+/* 建议路径单独一行、等宽字：用户要能一眼看出它落在哪个盘、哪个文件夹，
+ * 混在正文里会变成一段读不下去的长句。 */
+.modal-path {
+  margin-top: 10px !important;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--sunken);
+  font-family: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+  font-size: 12px !important;
+  color: var(--text) !important;
+  word-break: break-all;
+}
+
+.modal-path:empty {
+  display: none;
+}
+
+/* 卡片里用小一档的按钮：36px 高的大按钮塞进 392px 宽的对话框，
+ * 视觉重心会被它整个吃掉。 */
+.modal-actions .btn,
+.modal-actions .btn-danger {
+  height: 32px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes mask-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(-6px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 轻提示。只在"操作做完了、但界面上没有落点"时出现（复制日志、清空日志、
+ * 设置写入失败）。做成 fixed 而不是在文档流里插一行 —— 插一行会让整页
+ * 重新排版，正好是前面费劲避免的那类开销。 */
+.ui-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 60;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  animation: notice-in 180ms var(--ease);
+}
+
+.ui-notice[data-kind="error"] {
+  border-color: color-mix(in srgb, var(--red) 55%, var(--border));
+  color: var(--red-text);
+}
+
+@keyframes notice-in {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ------------------------------------------------------------ 窄屏适配
+ *
+ * 窗口最小宽度是 860，所以这里不是给手机用的 —— 而是给「系统缩放 150%」
+ * 和「分屏窄窗」用的：WebView 的 CSS 像素宽度会掉到 600 以下。这时两栏
+ * 布局会把表单挤成一列 40px 的控件，必须退回单栏。
+ *
+ * body 本身不滚（滚动交给 .content），否则窗口矮的时候顶栏和页脚会被
+ * 一起滚走，用户就找不到页签了。 */
+@media (max-width: 700px) {
+  body { overflow: hidden; }
+
+  .appbar { padding: 10px 12px 8px; gap: 8px; }
+  .appbar h1 { font-size: 13px; }
+  .tabs { padding: 0 8px; }
+
+  .content { overflow-y: auto; }
+
+  .page {
+    flex: none;
+    padding: 12px 12px 8px;
+    overflow: visible;      /* 滚动交给 .content，避免嵌套滚动条 */
+  }
+
+  #page0 { flex-direction: column; gap: 12px; }
+
+  #page0 > .page-side {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+  }
+  .side-head { flex-direction: column; gap: 2px; }
+  .side-size { margin-left: 0; }
+
+  .preview { height: 96px; width: 120px; flex: none; }
+  .page-side .side-head { flex: 1; }
+
+  .log-card {
+    flex: none;
+    height: 200px;
+    max-height: 200px;
+    margin: 8px 12px 12px;
+  }
+
+  .action { flex-wrap: wrap; }
+  .action-primary { padding-left: 0; }
+  .action-primary > :is(.btn, .btn-primary, .btn-danger) { flex: 1 1 auto; }
+  .action-primary > .btn-ghost { flex: none; margin-left: 0; }
+
+  .footer { padding: 8px 12px 10px; flex-wrap: wrap; }
+}
+
+@media (max-width: 460px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    align-items: stretch;
+  }
+  .row > label {
+    text-align: left;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .row > label.wrap { line-height: 1.35; }
+
+  .adv .action { padding-left: 0; }
+  .hint { padding-left: 0; align-items: flex-start; }
+  .hint::before { margin-top: 3px; }
+
+  .check { justify-self: start; }
+  .preview { height: 72px; width: 96px; }
+
+  .modal { padding: 16px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions > :is(.btn, .btn-primary, .btn-danger) { flex: 1 1 auto; }
+}
+
+/* 触屏 / 触控板：点击热区给到 44px。鼠标端保持 34px，桌面才够紧凑。 */
+@media (pointer: coarse) {
+  .btn { height: 40px; padding: 0 14px; }
+  .btn-ghost { height: 36px; }
+  .tab { padding: 12px 16px 13px; }
+  .adv-head { padding: 12px 6px; }
+  .check { width: 20px; height: 20px; }
+}
+
+/* 系统开了「减少动态效果」：全部动画和过渡直接关掉。
+ * 不用 animation-duration: .01ms 那套写法 —— 那样动画还在跑，只是跑得快，
+ * 有些场景反而更跳。这里直接 none。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+  .page.active { animation: none; }
+  .adv-body { transition: none; }
+  .btn:active { transform: none; }
+}
+
+[hidden] { display: none !important; }

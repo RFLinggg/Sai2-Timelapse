@@ -1,0 +1,574 @@
+# Simplified Chinese translation for art-timelapse.
+# This file is distributed under the same license as the art-timelapse package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: art-timelapse 3.17.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-21 22:47-0400\n"
+"PO-Revision-Date: 2026-10-09 12:00+0800\n"
+"Last-Translator: 北极星\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: hand-written\n"
+
+#: gui.py:249
+msgid "Select"
+msgstr "选择"
+
+#: gui.py:249 gui.py:562
+msgid "Any"
+msgstr "所有文件"
+
+#: gui.py:358
+msgid "mp4/avc1 - Works with most websites, including Twitter"
+msgstr "mp4/avc1 - 兼容大多数网站（含 Twitter）"
+
+#: gui.py:359
+msgid "webm/vp80 - Better color quality, but larger file size"
+msgstr "webm/vp80 - 色彩质量更好，但文件更大"
+
+#: gui.py:360
+msgid "Use custom container/codec"
+msgstr "使用自定义容器/编码器"
+
+#: gui.py:366
+msgid "Video type"
+msgstr "视频类型"
+
+#: gui.py:367
+msgid "Useful container/codec presets."
+msgstr "常用的容器/编码器预设。"
+
+#: gui.py:368
+msgid "Custom container"
+msgstr "自定义容器"
+
+#: gui.py:369
+msgid ""
+"If you want to use a container that is not listed above, whatever is "
+"supported by OpenCV and FFMPEG."
+msgstr ""
+"若要使用上方未列出的容器，填写 OpenCV 与 FFMPEG 支持的值即可。"
+
+#: gui.py:370
+msgid "Custom codec"
+msgstr "自定义编码器"
+
+#: gui.py:371
+msgid ""
+"If you want to use a codec that is not listed above, whatever is supported "
+"by OpenCV and FFMPEG."
+msgstr ""
+"若要使用上方未列出的编码器，填写 OpenCV 与 FFMPEG 支持的值即可。"
+
+#: gui.py:389
+msgid "Status"
+msgstr "状态"
+
+#: gui.py:413
+msgid "Save folder"
+msgstr "保存位置"
+
+#: gui.py:414
+msgid "One folder for everything. Each recording gets a timestamped subfolder holding the raw clips, and the exported video is saved next to it. Existing files are never overwritten - a _1, _2 suffix is added instead."
+msgstr "录制和成片都放在这一个文件夹里：每次录制会建一个带时间戳的子目录存原始分段，导出的成片就放在它旁边。同名文件不会被覆盖，会自动加 _1、_2 后缀。"
+
+#: gui.py:417
+msgid "Auto split count"
+msgstr "自动分段帧数"
+
+#: gui.py:418
+msgid ""
+"Automatically split video output after this many frames. Enter 0 or leave "
+"blank to disable. This is useful to mitigate the chance of missing or "
+"corrupt video data after a system crash."
+msgstr ""
+"每录制这么多帧就自动分段保存一次视频。填 0 或留空表示不分段。这样可降低系统崩"
+"溃时视频数据丢失或损坏的风险。"
+
+#: gui.py:421
+msgid "Image size limit (px)"
+msgstr "图像尺寸上限（像素）"
+
+#: gui.py:422
+msgid "Captured images will be resized to this if larger than this value."
+msgstr "采集到的图像超过此值时，会缩小到该尺寸。"
+
+#: gui.py:512
+msgid "Start Recording"
+msgstr "开始录制"
+
+#: gui.py:513
+msgid "Export"
+msgstr "导出"
+
+#: gui.py:549
+msgid "SAI Recording"
+msgstr "SAI 录制"
+
+#: gui.py:552
+msgid "SAI version detected"
+msgstr "检测到的 SAI 版本"
+
+#: gui.py:553
+msgid "SAI version override"
+msgstr "SAI 版本覆盖"
+
+#: gui.py:554
+msgid "Canvas"
+msgstr "画布"
+
+#: gui.py:555
+msgid "Canvas preview"
+msgstr "画布预览"
+
+#: gui.py:574
+msgid "Export Video"
+msgstr "导出视频"
+
+#: gui.py:576
+msgid "Export file"
+msgstr "导出文件"
+
+#: gui.py:577
+msgid "Export time limit"
+msgstr "导出时长上限"
+
+#: gui.py:578
+msgid "Export FPS"
+msgstr "导出帧率"
+
+#: gui.py:579
+msgid "Preview last frame first"
+msgstr "开头先显示末帧预览"
+
+#: gui.py:580
+msgid "Preview duration"
+msgstr "预览时长"
+
+#: gui.py:581
+msgid "Use recording video type"
+msgstr "沿用录制时的视频类型"
+
+#: gui.py:589
+msgid "Stop Recording"
+msgstr "结束录制"
+
+#: gui.py:590
+msgid "Stop Exporting"
+msgstr "停止导出"
+
+#: gui.py:592
+msgid ""
+"If the running SAI version cannot be detected, the selected override will be "
+"used."
+msgstr "如果无法检测到正在运行的 SAI 版本，将使用所选的覆盖版本。"
+
+#: gui.py:593
+msgid "Select which open SAI canvas to record from."
+msgstr "选择要从哪个已打开的 SAI 画布录制。"
+
+#: gui.py:597
+msgid ""
+"Path to the video file to export to. Extension is determined by video type. "
+"Leave blank to automatically use the frames path."
+msgstr ""
+"导出视频的文件路径。扩展名由视频类型决定。留空则自动使用帧目录。"
+
+#: gui.py:598
+msgid ""
+"Maximum time the exported video should be. Enter 0 or leave blank for no "
+"time limit."
+msgstr "导出视频的最大时长。填 0 或留空表示不限时长。"
+
+#: gui.py:599
+msgid "Set the FPS of the exported video. 30 is a common default."
+msgstr "设置导出视频的帧率，常用默认值为 30。"
+
+#: gui.py:600
+msgid ""
+"Display the last frame at the beginning of the exported video, like a "
+"preview of the finished timelapse."
+msgstr "在导出视频的开头先显示最后一帧，作为成片效果的预览。"
+
+#: gui.py:601
+msgid ""
+"The duration of the preview frame in seconds. Enter 0 or leave blank to "
+"display for only a single frame. This adds on to the final export duration."
+msgstr ""
+"预览帧的显示时长（秒）。填 0 或留空则只显示一帧。该时长会累加到最终导出时长"
+"上。"
+
+#: gui.py:602
+msgid ""
+"Use the same video options as the recording tabs and ignore the below "
+"settings."
+msgstr "沿用录制标签页的视频设置，忽略下方这些选项。"
+
+#: gui.py:606
+msgid "Theme:"
+msgstr "主题："
+
+#: gui.py:683
+msgid ""
+"Possible Wayland session is running because the following environment "
+"variable was set:"
+msgstr "检测到可能正在运行 Wayland 会话，因为设置了以下环境变量："
+
+#: gui.py:685
+msgid ""
+"Wayland sessions are currently not supported by dependencies mss and "
+"pywinctl."
+msgstr "当前依赖 mss 和 pywinctl 尚不支持 Wayland 会话。"
+
+#: gui.py:686
+msgid ""
+"To work around this, you can run this tool and your desired art program "
+"inside of Xwayland, see README.md."
+msgstr "解决办法：在 Xwayland 中运行本工具和你的绘画软件，详见 README.md。"
+
+#: gui.py:688
+msgid "Supported SAI versions:"
+msgstr "支持的 SAI 版本："
+
+#: gui.py:764
+msgid "SAI is not running"
+msgstr "SAI 未运行"
+
+#: gui.py:777
+msgid "(Override)"
+msgstr "（覆盖）"
+
+#: gui.py:798
+msgid "Recording started"
+msgstr "录制已开始"
+
+#: gui.py:799
+msgid "Recording stopped"
+msgstr "录制已停止"
+
+#: gui.py:802
+msgid "Exporting started"
+msgstr "导出已开始"
+
+#: gui.py:803
+msgid "Exporting stopped"
+msgstr "导出已停止"
+
+#: gui.py:829
+msgid "No valid SAI process found"
+msgstr "未找到有效的 SAI 进程"
+
+#: gui.py:834
+msgid "There are no canvases open"
+msgstr "没有已打开的画布"
+
+#: gui.py:875
+msgid "Export cancelled"
+msgstr "导出已取消"
+
+#: timelapse.py:167
+msgid ""
+"Click and drag on a subwindow to start tracking an area. Right click to "
+"cancel."
+msgstr "在子窗口上按住拖拽以开始追踪区域。右键取消。"
+
+#: timelapse.py:173
+msgid "Click on a subwindow to start tracking. Right click to cancel."
+msgstr "点击子窗口开始追踪。右键取消。"
+
+#: timelapse.py:214
+msgid "Window grab cancelled"
+msgstr "已取消窗口抓取"
+
+#: timelapse.py:264
+msgid "Could not find window automatically"
+msgstr "无法自动找到窗口"
+
+#: timelapse.py:276
+msgid "Writing to video:"
+msgstr "正在写入视频："
+
+#: timelapse.py:327
+msgid "Writing to frames folder:"
+msgstr "正在写入帧目录："
+
+#: timelapse.py:362
+msgid "Reading from frames folder:"
+msgstr "正在从帧目录读取："
+
+#: timelapse.py:476
+msgid "Window lost:"
+msgstr "窗口丢失："
+
+#: timelapse.py:480
+msgid "Tracking input for window:"
+msgstr "正在追踪窗口输入："
+
+#: timelapse.py:488
+msgid "Stopped tracking window:"
+msgstr "已停止追踪窗口："
+
+#: timelapse.py:536
+msgid "No appropriate frame data found:"
+msgstr "未找到合适的帧数据："
+
+#: timelapse.py:571
+msgid "Canvas lost, stopping now"
+msgstr "画布丢失，正在停止"
+
+#: gui.py
+msgid "Recording session:"
+msgstr "本次录制目录："
+
+#: gui.py
+msgid "Using recording session:"
+msgstr "导出使用录制目录："
+
+#: gui.py
+msgid "Advanced settings"
+msgstr "高级设置"
+
+#: gui.py
+msgid "This session"
+msgstr "本次录制"
+
+#: gui.py
+msgid "No frames recorded yet"
+msgstr "还没有录到任何帧"
+
+#: gui.py
+msgid "{} frames · {} source → {} video"
+msgstr "{} 帧 · 素材 {} → 成片 {}"
+
+#: gui.py
+msgid "(sampled)"
+msgstr "（抽帧）"
+
+#: webapp.py
+msgid "saves as {}"
+msgstr "将导出为 {}"
+
+#: webapp.py
+msgid "Choose a save folder"
+msgstr "选一个保存位置"
+
+#: webapp.py
+msgid "Recording clips and exported videos both live in this one folder. You can change it later on the Recording tab."
+msgstr "录制的原始分段和导出的成片都会放在这个文件夹里，之后可以在「SAI 录制」页改。"
+
+#: webapp.py
+msgid "Choose folder…"
+msgstr "选择文件夹…"
+
+#: webapp.py
+msgid "Use this folder"
+msgstr "就用这里"
+
+#: webapp.py
+msgid "Choose a save folder first — nothing is recorded without one."
+msgstr "还没选保存位置 —— 没有它什么都不会录。"
+
+
+#: gui.py
+msgid "Error"
+msgstr "出错了"
+
+#: timelapse.py
+msgid "No frames have been recorded yet. Start recording first, then export."
+msgstr "还没有录到任何帧。请先开始录制，再来导出。"
+
+#: timelapse.py
+msgid "Cannot create video file: {}"
+msgstr "无法创建视频文件：{}"
+
+#: timelapse.py
+msgid "Codec {} is not available in this build."
+msgstr "当前版本不支持编码器 {}。"
+
+#: timelapse.py
+msgid "The path contains non-ASCII characters, which codec {} cannot handle. Switch the video type to webm/vp80, or move the folder to an ASCII-only path."
+msgstr "路径里含中文等非 ASCII 字符，编码器 {} 无法处理这种路径。请把「视频类型」改成 webm/vp80，或把目录换到纯英文路径。"
+
+
+#: gui.py
+msgid "Saved to"
+msgstr "保存到"
+
+#: gui.py
+msgid "Open"
+msgstr "打开"
+
+#: gui.py
+msgid "Recording {} frames · {}"
+msgstr "录制中 {} 帧 · {}"
+
+#: gui.py
+msgid "Recording stopped: the SAI canvas was closed"
+msgstr "录制结束：SAI 画布被关闭"
+
+#: gui.py
+msgid "Recording stopped: could not find the SAI window"
+msgstr "录制结束：找不到 SAI 窗口"
+
+#: gui.py
+msgid "Folder does not exist: {}"
+msgstr "文件夹不存在：{}"
+
+#: gui.py
+msgid "Capture size limit"
+msgstr "录制分辨率上限"
+
+#: gui.py
+msgid "Original size"
+msgstr "原始尺寸"
+
+#: gui.py
+msgid "Captured images will be scaled down to fit this size. Larger means sharper video but slower capture and bigger files."
+msgstr "截图会被缩到不超过这个尺寸。数值越大成片越清晰，但采集更慢、文件更大。"
+
+#: gui.py
+msgid "Global hotkey: {} to start / stop recording"
+msgstr "全局热键：{} 开始 / 停止录制"
+
+#: gui.py
+msgid "Tip: Ctrl+Alt+S starts / stops recording globally, even while SAI has focus."
+msgstr "提示：按 Ctrl+Alt+S 可以随时开始 / 停止录制，即使焦点在 SAI 上。"
+
+#: gui.py
+msgid "Ctrl+Alt+S starts / stops recording, even while SAI has focus."
+msgstr "Ctrl+Alt+S 随时开始 / 停止录制，不用切回本窗口。"
+
+#: gui.py
+msgid "Clear"
+msgstr "清空"
+
+#: gui.py
+msgid "Copy"
+msgstr "复制"
+
+#: gui.py
+msgid "Open log file"
+msgstr "打开日志文件"
+
+msgid "No log entries yet. Start recording and progress shows up here."
+msgstr "还没有日志。开始录制后这里会显示进度。"
+
+msgid "frames"
+msgstr "帧"
+
+#: gui.py
+msgid "No log file yet. Logs are written to a file only in the packaged build."
+msgstr "还没有日志文件。只有打包版才会把日志写到文件里。"
+
+#: gui.py
+msgid "Supported SAI versions: {}"
+msgstr "支持的 SAI 版本：{} 个"
+
+#: gui.py
+msgid "Restore default settings"
+msgstr "恢复默认设置"
+
+#: gui.py
+msgid "All settings except the frames folder, theme, language and window position will be reset. Continue?"
+msgstr "除帧目录、主题、语言和窗口位置外，其余设置都会恢复默认。继续吗？"
+
+#: gui.py
+msgid "Settings restored to defaults ({} items)"
+msgstr "设置已恢复默认（{} 项）"
+
+#: gui.py
+msgid "Settings restored to defaults."
+msgstr "设置已恢复默认。"
+
+#: gui.py
+msgid "Language"
+msgstr "语言"
+
+#: gui.py
+msgid "Recording"
+msgstr "录制中"
+
+#: gui.py
+msgid "No preview"
+msgstr "无预览"
+
+#: webapp.py
+msgid "Pause"
+msgstr "暂停"
+
+#: webapp.py
+msgid "Resume"
+msgstr "继续"
+
+#: webapp.py
+msgid "Paused"
+msgstr "已暂停"
+
+#: webapp.py
+msgid "Recording paused"
+msgstr "录制已暂停"
+
+#: webapp.py
+msgid "Recording resumed"
+msgstr "已恢复录制"
+
+#: webapp.py
+msgid "Stop recording?"
+msgstr "结束这次录制？"
+
+#: webapp.py
+msgid "{} frames recorded · {}. You can export it from the Export tab afterwards."
+msgstr "已录 {} 帧 · {}。结束后可以到「导出视频」页生成成片。"
+
+#: webapp.py
+msgid "Cancel"
+msgstr "取消"
+
+#: webapp.py — 号码本身在前端 DOM 里，这条只是标签
+msgid "Feedback QQ group"
+msgstr "反馈 QQ 群"
+
+msgid "Floating bar"
+msgstr "悬浮窗"
+
+msgid "Append to last session"
+msgstr "接着上次录制"
+
+msgid "Archive frames"
+msgstr "归档这批帧"
+
+msgid "Continuing session {1} ({0} frames already recorded)"
+msgstr "继续写入会话 {1}（已有 {0} 帧）"
+
+msgid "Last session is {0}; this recording starts a new clip. Turn on \"Append to last session\" to continue that one instead."
+msgstr "上次的录制是 {0}，这次会另开一段。想接着上次继续画，把「接着上次录制」打开。"
+
+msgid "Canvas is {}x{} but the existing recording is {}x{}; on export that part will be scaled and letterboxed."
+msgstr "画布 {}×{} 与已有录制的 {}×{} 不同，导出时这一段会被缩放并加上黑边。"
+
+msgid "Archived {} frames from session {}"
+msgstr "已把 {} 帧从会话 {} 归档"
+
+msgid "Codec {} is not available on this machine; falling back to {} ({})."
+msgstr "本机不支持编码器 {}，已自动改用 {}（{}）。"
+
+msgid "GPU acceleration disabled by ART_TIMELAPSE_NO_GPU"
+msgstr "已按环境变量禁用 WebView2 的 GPU 加速"
+
+msgid "Tk UI forced by ART_TIMELAPSE_UI=tk"
+msgstr "已按环境变量切到 Tk 界面"
+
+msgid "Size {}x{}, {} fps, writing to {}"
+msgstr "尺寸 {}x{}，{} fps，落点 {}"
+
+msgid "Tried: {}"
+msgstr "已尝试：{}"
+
+msgid "Canvas size is {}x{} — the SAI version parameters do not match, so nothing can be recorded. Run Sai2-Sniffer and send the report back."
+msgstr "画布尺寸是 {}x{} —— SAI 版本参数对不上，录不了。请运行 Sai2-Sniffer 生成报告发回来。"

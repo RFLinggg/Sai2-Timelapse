@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="sai-dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sai2-Timelapse🔔</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ------------------------------------------------------------ 装饰符号
+     几何直接沿用 Tk 版的 ornaments.py（24×24 铃铛 / 16×20 单瓣 / 26×26 五瓣花），
+     换成 SVG 之后终于有了真描边、真抗锯齿和渐变。
+
+     渐变用 userSpaceOnUse 而不是默认的 objectBoundingBox：铃舌只有 3px 高，
+     按各自包围盒铺渐变的话它会从「中性色」一路渐变到「红」，糊成一团；
+     用同一套用户坐标，铃身、铃舌、顶钮才共用一条从顶到底的色带。
+     三个 stop 的颜色走 CSS 变量，切主题时只换变量，不用重建 SVG。 -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="g-bell" gradientUnits="userSpaceOnUse" x1="0" y1="1.4" x2="0" y2="20.2">
+      <stop offset="0" class="bell-s0"/>
+      <stop offset=".58" class="bell-s1"/>
+      <stop offset="1" class="bell-s2"/>
+    </linearGradient>
+  </defs>
+
+  <symbol id="i-bell" viewBox="0 0 24 24">
+    <g fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3C9 3 7.2 5.4 7.2 8.2V13L5.4 16H18.6L16.8 13V8.2C16.8 5.4 15 3 12 3Z"/>
+      <path d="M9.9 18A2.1 2.1 0 0 0 14.1 18"/>
+      <path d="M12 3V1.4"/>
+    </g>
+  </symbol>
+
+  <!-- 小尺寸（≤14px）用实心版：那个尺寸上 1.6 的描边只剩半个像素，
+       叠在浅色胶囊底上直接糊掉。和花瓣同一条道理 —— 小就填实。 -->
+  <symbol id="i-bell-solid" viewBox="0 0 24 24">
+    <g fill="currentColor">
+      <path d="M12 3C9 3 7.2 5.4 7.2 8.2V13L5.4 16H18.6L16.8 13V8.2C16.8 5.4 15 3 12 3Z"/>
+      <circle cx="12" cy="18.4" r="1.7"/>
+      <rect x="11.3" y="1.1" width="1.4" height="2.6" rx=".7"/>
+    </g>
+  </symbol>
+
+  <!-- 花瓣/花标只留实心版。
+       线描版（1.5 描边的五片细瓣）在 18px 上会散成"雪花/星号"，
+       热键提示里的单瓣同样只剩一根竖条 —— 小尺寸一律填实，没有例外。
+       填色版还有第二条约束：花瓣必须**短而宽、且圆头** —— 尖头实心瓣转五份，
+       轮廓就是个五角星，不管叫什么名字看着都是星。 -->
+  <symbol id="i-flower-solid" viewBox="0 0 26 26">
+    <g fill="currentColor">
+      <g transform="translate(13 13)">
+        <path d="M0 0C-4.6-1.4-4.6-6.2-2.7-8.4C-1.4-9.8 1.4-9.8 2.7-8.4C4.6-6.2 4.6-1.4 0 0Z"/>
+        <path d="M0 0C-4.6-1.4-4.6-6.2-2.7-8.4C-1.4-9.8 1.4-9.8 2.7-8.4C4.6-6.2 4.6-1.4 0 0Z" transform="rotate(72)"/>
+        <path d="M0 0C-4.6-1.4-4.6-6.2-2.7-8.4C-1.4-9.8 1.4-9.8 2.7-8.4C4.6-6.2 4.6-1.4 0 0Z" transform="rotate(144)"/>
+        <path d="M0 0C-4.6-1.4-4.6-6.2-2.7-8.4C-1.4-9.8 1.4-9.8 2.7-8.4C4.6-6.2 4.6-1.4 0 0Z" transform="rotate(216)"/>
+        <path d="M0 0C-4.6-1.4-4.6-6.2-2.7-8.4C-1.4-9.8 1.4-9.8 2.7-8.4C4.6-6.2 4.6-1.4 0 0Z" transform="rotate(288)"/>
+      </g>
+    </g>
+  </symbol>
+</svg>
+
+<!-- ---------------------------------------------------------------- 顶栏 -->
+<header class="appbar">
+  <svg class="brand-bell" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bell"/></svg>
+  <!-- 标题里的 🔔 故意不写进 h1：左边那颗渐变铃铛就是它。
+       真把 emoji 也塞进来，标题栏会变成"画出来的铃铛 + 彩色 emoji 铃铛"并排两个，
+       而且 emoji 走 Segoe UI Emoji，和这套中性+红的配色根本不是一个色系。 -->
+  <h1>Sai2-Timelapse</h1>
+  <span class="ver" id="ver"></span>
+  <span class="spacer"></span>
+  <span class="pill" id="recPill">
+    <svg class="pill-bell" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-bell-solid"/></svg>
+    <span id="recPillText">0</span>
+  </span>
+</header>
+
+<!-- ---------------------------------------------------------------- 页签 -->
+<nav class="tabs" role="tablist">
+  <button class="tab" role="tab" id="tab0" data-tab="0" aria-selected="true" aria-controls="page0" tabindex="0" data-i18n="tab_sai"></button>
+  <button class="tab" role="tab" id="tab1" data-tab="1" aria-selected="false" aria-controls="page1" tabindex="-1" data-i18n="tab_export"></button>
+</nav>
+
+<!-- ---------------------------------------------------------------- 主体 -->
+<main class="content">
+
+  <!-- ============================ SAI 录制 ============================ -->
+  <!-- 两栏：左边表单，右边画布预览。表单行只有「标签 + 控件」，右边本来空着
+       一大片；预览挪过来既是填充，也让用户录制前能确认抓的是不是这个画布。 -->
+  <section class="page active" id="page0" role="tabpanel" aria-labelledby="tab0">
+    <div class="page-main">
+      <div class="row">
+        <label data-i18n="frames_path" data-tip="tip_frames"></label>
+        <div class="field-wrap">
+          <input class="field" id="framesFile" spellcheck="false" autocomplete="off">
+          <button class="btn" id="pickFrames" data-i18n="select"></button>
+        </div>
+      </div>
+
+      <div class="row">
+        <label data-i18n="canvas" data-tip="tip_canvas"></label>
+        <select class="field" id="canvasSel"></select>
+      </div>
+
+      <div class="row">
+        <label data-i18n="sai_version" data-tip="tip_override"></label>
+        <div class="value empty" id="saiVersion"></div>
+      </div>
+
+      <div class="adv">
+        <button class="adv-head" id="advSaiHead" aria-expanded="false" aria-controls="advSaiBody">
+          <svg class="chev" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor"
+                  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span data-i18n="advanced"></span>
+        </button>
+        <div class="adv-body" id="advSaiBody" inert aria-hidden="true"><div>
+          <div class="row">
+            <label data-i18n="auto_split" data-tip="tip_split"></label>
+            <input class="field" id="autoSplit" type="number" min="0" step="50">
+          </div>
+          <!-- 默认关：原来每次录制都是一段新的，导出只读最新那个会话。
+               想「今天画一半、明天接着画」必须显式打开这个。 -->
+          <div class="row">
+            <label data-i18n="append_last_session"></label>
+            <input type="checkbox" id="appendLast" class="check">
+          </div>
+          <div class="row">
+            <label data-i18n="sai_version_override" data-tip="tip_override"></label>
+            <select class="field" id="versionSel"></select>
+          </div>
+          <div class="row">
+            <label data-i18n="capture_size" data-tip="tip_size"></label>
+            <div class="field-wrap">
+              <select class="field" id="sizePreset"></select>
+              <input class="field" id="sizeValue" type="number" min="100" max="16384" step="100"
+                     style="max-width:96px">
+            </div>
+          </div>
+          <div class="row">
+            <label data-i18n="video_type" data-tip="tip_video"></label>
+            <select class="field" id="recType"></select>
+          </div>
+          <div class="row" id="recContainerRow" hidden>
+            <label data-i18n="custom_container" data-tip="tip_container"></label>
+            <input class="field" id="recContainer" spellcheck="false">
+          </div>
+          <div class="row" id="recCodecRow" hidden>
+            <label data-i18n="custom_codec" data-tip="tip_codec"></label>
+            <input class="field" id="recCodec" spellcheck="false">
+          </div>
+          <div class="action">
+            <button class="btn" id="restoreBtn" data-i18n="restore_defaults"></button>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="action action-primary">
+        <button class="btn-primary" id="recBtn" data-i18n="start_recording"></button>
+        <button class="btn" id="pauseBtn" hidden data-i18n="pause"></button>
+      </div>
+      <div class="hint" id="hotkeyHint"></div>
+    </div>
+
+    <aside class="page-side">
+      <div class="side-head">
+        <span data-i18n="canvas_preview"></span>
+        <span class="side-size" id="previewSize"></span>
+      </div>
+      <div class="preview" id="previewBox" role="img"></div>
+    </aside>
+  </section>
+
+  <!-- ============================ 导出视频 ============================ -->
+  <section class="page" id="page1" role="tabpanel" aria-labelledby="tab1">
+    <div class="row">
+      <label data-i18n="frames_path"></label>
+      <div class="value empty" id="framesReadonly"></div>
+    </div>
+
+    <div class="row">
+      <label data-i18n="export_fps" data-tip="tip_fps"></label>
+      <input class="field" id="exportFps" type="number" min="1" max="120" step="1">
+    </div>
+
+    <div class="row">
+      <label data-i18n="export_time_limit" data-tip="tip_limit"></label>
+      <input class="field" id="exportLimit" type="number" min="0" step="10">
+    </div>
+
+    <div class="row">
+      <label data-i18n="this_session"></label>
+      <div class="value empty" id="summary"></div>
+    </div>
+    <!-- 素材被自动分成多段时的说明。默认 .off 隐藏，只有真的 >1 段才出现：
+         绝大多数人不会去看帧目录，但去了就会看到一堆十几秒的 mp4，
+         然后以为导出坏了（2026-11-20 群里问了两次）。 -->
+    <div class="hint off" id="segmentsHint"></div>
+
+    <div class="adv">
+      <button class="adv-head" id="advExportHead" aria-expanded="false" aria-controls="advExportBody">
+        <svg class="chev" viewBox="0 0 10 10" aria-hidden="true">
+          <path d="M3 1.5 L7 5 L3 8.5" fill="none" stroke="currentColor"
+                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span data-i18n="advanced"></span>
+      </button>
+      <div class="adv-body" id="advExportBody" inert aria-hidden="true"><div>
+        <div class="row">
+          <label data-i18n="preview_last_frame" data-tip="tip_preview_first"></label>
+          <input type="checkbox" id="previewFirst" class="check">
+        </div>
+        <div class="row">
+          <label data-i18n="preview_duration" data-tip="tip_preview_dur"></label>
+          <input class="field" id="previewDuration" type="number" min="0" max="60" step="0.5">
+        </div>
+        <div class="row">
+          <label data-i18n="use_recording_type" data-tip="tip_use_recording"></label>
+          <input type="checkbox" id="useRecType" class="check">
+        </div>
+        <div class="row" id="expTypeRow" hidden>
+          <label data-i18n="video_type"></label>
+          <select class="field" id="expType"></select>
+        </div>
+        <div class="row" id="expContainerRow" hidden>
+          <label data-i18n="custom_container"></label>
+          <input class="field" id="expContainer" spellcheck="false">
+        </div>
+        <div class="row" id="expCodecRow" hidden>
+          <label data-i18n="custom_codec"></label>
+          <input class="field" id="expCodec" spellcheck="false">
+        </div>
+      </div></div>
+    </div>
+
+    <div class="action action-primary">
+      <button class="btn-primary" id="expBtn" data-i18n="export"></button>
+    </div>
+
+    <!-- 导出进度：后端每帧回传 op.progress（0..1），这里只负责画。
+         放在按钮下方而不是塞进按钮文字里 —— 按钮文字一变宽度就跳，
+         而进度条固定占位，读数靠右边的等宽数字。 -->
+    <div class="exp-progress" id="expProgress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+      <div class="exp-track"><div class="exp-fill" id="expFill"></div></div>
+      <span class="exp-pct" id="expPct"></span>
+    </div>
+
+    <div class="row">
+      <label data-i18n="saved_to"></label>
+      <div class="field-wrap">
+        <svg class="flower-ok" id="flowerOk" viewBox="0 0 26 26" aria-hidden="true">
+          <use href="#i-flower-solid"/>
+        </svg>
+        <div class="value empty" id="savedTo"></div>
+      </div>
+    </div>
+
+    <!-- 成片卡片：等了几十秒才出的东西，值得一张有缩略图的卡，而不是
+         光秃秃一行路径。「打开」按钮也从上面那行挪进来了 —— 成果和它的
+         操作放一起，上面那行只管显示路径。 -->
+    <div class="result-card" id="resultCard" hidden>
+      <div class="result-thumb" id="resultThumb"></div>
+      <div class="result-body">
+        <div class="result-name" id="resultName"></div>
+        <div class="result-meta" id="resultMeta"></div>
+      </div>
+      <button class="btn" id="openExport" data-i18n="open" disabled></button>
+      <!-- 归档：把刚导完的会话移进 archive/，下一次导出从零开始。
+           放在结果卡里，是因为「这段做完了」这个判断只有导出之后才成立。 -->
+      <button class="btn btn-ghost" id="archiveFrames" data-i18n="archive_frames" hidden></button>
+    </div>
+  </section>
+
+  <!-- ============================ 日志 ============================ -->
+  <div class="log-card">
+    <div class="log-head">
+      <span class="title" data-i18n="status"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="logClear" data-i18n="clear"></button>
+      <button class="btn btn-ghost" id="logCopy" data-i18n="copy"></button>
+      <button class="btn btn-ghost" id="logOpen" data-i18n="open_log"></button>
+    </div>
+    <div class="log-body" id="logBody"></div>
+    <!-- 空态：一行都没有时给句话，别让一整块卡片空着。
+         放在 .log-body 外面，因为 bootstrap 会 innerHTML = '' 清空 body。 -->
+    <div class="log-empty" id="logEmpty" data-i18n="log_empty"></div>
+  </div>
+
+</main>
+
+<!-- ---------------------------------------------------------------- 底栏 -->
+<footer class="footer">
+  <!-- 反馈渠道：QQ 群号写死在 DOM 里，点击复制。不做 tencent:// 唤起 ——
+       协议处理在 WebView2 里能不能过、用户装没装 QQ 都不确定，
+       复制号码让他自己去搜是最不会失败的一条路。 -->
+  <button class="feedback" id="feedbackBtn" type="button">
+    <span data-i18n="feedback"></span>
+    <b>942992768</b>
+  </button>
+  <!-- 悬浮条开关。放在这里是因为它是「常驻小工具」的开关，
+       和主题/语言同属「界面周边」，不该占主流程里的位置。 -->
+  <button class="feedback" id="floatBtn" type="button">
+    <span data-i18n="floatbar"></span>
+    <b id="floatState"></b>
+  </button>
+  <label data-i18n="theme"></label>
+  <select class="field" id="themeSel" style="max-width:110px"></select>
+  <span class="spacer"></span>
+  <label data-i18n="language"></label>
+  <select class="field" id="langSel" style="max-width:120px"></select>
+</footer>
+
+<!-- ------------------------------------------------------------ 确认对话框 -->
+<!-- 不用原生 confirm()：它会阻塞 JS 线程，弹出期间轮询停摆、录制时长冻在那一刻；
+     而且白底系统对话框压在深色界面上，和整个设计不是一回事。 -->
+<div class="modal-mask" id="confirmMask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <h2 id="confirmTitle"></h2>
+    <p id="confirmBody"></p>
+    <div class="modal-actions">
+      <button class="btn" id="confirmCancel" data-i18n="cancel"></button>
+      <button class="btn-danger" id="confirmOk"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 首次启动：没有保存位置就先让用户选一个，不然录了也没地方放 -->
+<div class="modal-mask" id="setupMask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+    <h2 id="setupTitle" data-i18n="setup_title"></h2>
+    <p data-i18n="setup_body"></p>
+    <p class="modal-path" id="setupPath"></p>
+    <div class="modal-actions">
+      <button class="btn" id="setupPick" data-i18n="setup_pick"></button>
+      <button class="btn-primary" id="setupUse" data-i18n="setup_use"></button>
+    </div>
+  </div>
+</div>
+
+<!-- 轻提示：复制日志、清空日志、设置写入失败这类「做完了但界面上没有落点」
+     的操作才用它。role=status 让读屏软件也能念出来。 -->
+<div class="ui-notice" id="uiNotice" role="status" aria-live="polite" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>

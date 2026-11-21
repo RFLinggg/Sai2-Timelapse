@@ -1,0 +1,46 @@
+{
+  "schema": 1,
+  "_comment": [
+    "Sai2-Timelapse 外部版本表。",
+    "",
+    "用法（二选一）：",
+    "  A. 改名为 sai-versions.json，放到 Sai2-Timelapse.exe 同一个目录",
+    "  B. 改名为 .art-timelapse-versions.json，放到 C:\\Users\\<你>\\ 下面",
+    "两个都放的话 B 生效。改完重开程序，日志里会多一行「外部版本表：载入 N 条」。",
+    "",
+    "怎么拿到 hash / offset：用同目录的 Sai2-Sniffer，扫完看 report.json 里的",
+    "detected.session_offset 和 sai.exe_md5。",
+    "",
+    "base 布局（绝大多数版本）只要 hash / name / offset 三项。",
+    "new 布局（Alpha.2026.09.25 那种大重构）必须再给 fields，否则读出来是花屏。"
+  ],
+  "versions": [
+    {
+      "_comment": "base 布局示例 —— 抄这一条改三个值就行",
+      "hash": "00000000000000000000000000000000",
+      "name": "SAI Ver.2 (64bit) 20XX.XX.XX",
+      "offset": "0x320420",
+      "layout": "base"
+    },
+    {
+      "_comment": "new 布局示例 —— fields 里的类型只支持 ptr / int32 / uint32 / utf16 / tile_maps",
+      "hash": "11111111111111111111111111111111",
+      "name": "SAI Ver.2 (64bit) 20XX.XX.XX (new layout)",
+      "offset": "0x478280",
+      "layout": "new",
+      "fields": [
+        [0, "next_canvas", "ptr"],
+        [8, "prev_canvas", "ptr"],
+        [16, "prev_user_canvas", "ptr"],
+        [24, "next_user_canvas", "ptr"],
+        [40, "width", "int32"],
+        [44, "height", "int32"],
+        [72, "tile_maps", "tile_maps"],
+        [384, "tile_count_x", "uint32"],
+        [388, "tile_count_y", "uint32"],
+        [2296, "name", "utf16", 260],
+        [2816, "short_path", "utf16", 260]
+      ]
+    }
+  ]
+}
