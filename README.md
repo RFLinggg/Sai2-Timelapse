@@ -75,6 +75,7 @@ venv\Scripts\python.exe tools\check_build.py
 - [交接说明.md](交接说明.md) —— 适配一个 SAI2 新版本的完整流程、命令速查、真实踩过的坑
 - [适配说明.md](适配说明.md) —— 逐版本记录每次适配的验证数据（画布尺寸、缩放比、mean/std、画面内容）
 - `tools\inspect_report.py` / `tools\add_version.py` —— 从嗅探器报告到版本表条目，各一条命令
+- [tests/](tests/) —— 离机测试，外加两个要在真机上跑的（需要 SAI2 里开着画布）
 
 ### 加一个版本的流程
 
