@@ -30,6 +30,11 @@ from tkinter import font as tkfont
 
 from .util import format_duration
 
+
+class RECT_CLS(ctypes.Structure):
+    _fields_ = [('left', ctypes.c_long), ('top', ctypes.c_long),
+                ('right', ctypes.c_long), ('bottom', ctypes.c_long)]
+
 # ---- 配色（与 webui/style.css 的 sai-dark 同一族）----
 BG = '#14171a'
 EDGE = '#232930'      # 1px 描边，只求在深色桌面上分得出边界，别抢眼
@@ -70,6 +75,7 @@ class FloatBar:
         self._drag_target = None      # 最近一次鼠标位置算出的目标坐标
         self._content_hidden = False  # 拖动期间内容被藏起来了（只剩纯色底）
         self._last_move = 0.0         # 上次真正移动窗口的时刻（12ms 限流用）
+        self._drag_stamps = []        # 每次移动的时刻，拖动结束汇总成间隔统计
         self._resize = None
         self._save_job = None
         self._render_failures = 0     # 连续刷新失败次数，用来限流 warning
@@ -390,8 +396,14 @@ class FloatBar:
 
     # ------------------------------------------------------------ 拖动窗口
     def _drag_start(self, event):
-        self._drag = (event.x_root, event.y_root,
-                      self.root.winfo_x(), self.root.winfo_y())
+        # 起点用 Win32 取：下面用 SetWindowPos 直接移动，Tk 内部记录的 x/y
+        # 要等它处理完 WM_MOVE 才更新，用 winfo_x() 会让下一次拖动起点偏掉。
+        try:
+            x0, y0 = self._win_pos()
+        except Exception:
+            x0, y0 = self.root.winfo_x(), self.root.winfo_y()
+        self._drag_stamps = []
+        self._drag = (event.x_root, event.y_root, x0, y0)
         self._drag_moved = False
         self._hide_content()
 
@@ -436,14 +448,62 @@ class FloatBar:
         if now - self._last_move < 0.012:
             return
         self._last_move = now
+        self._drag_stamps.append(now)
         x, y = self._drag_target
-        self.root.geometry(f'+{x}+{y}')
+        self._set_pos(x, y)
+
+    def _win_pos(self) -> tuple[int, int]:
+        rect = RECT_CLS()
+        ctypes.windll.user32.GetWindowRect(ctypes.c_void_p(self._toplevel()), ctypes.byref(rect))
+        return rect.left, rect.top
+
+    def _toplevel(self) -> int:
+        u = ctypes.windll.user32
+        u.GetParent.restype = ctypes.c_void_p
+        u.GetParent.argtypes = [ctypes.c_void_p]
+        parent = u.GetParent(ctypes.c_void_p(self.root.winfo_id()))
+        return int(parent or self.root.winfo_id())
+
+    def _set_pos(self, x: int, y: int) -> None:
+        """直接调 SetWindowPos 移动。
+
+        ``root.geometry()`` 要经过 Tk 的 wm 层：解析 '+x+y' 字符串、走
+        Tk_MoveResizeWindow、检查窗口状态，最后才落到 SetWindowPos。拖动
+        每 12ms 走一次，这层开销就不能不算。失败再退回 Tk 的路径。
+        """
+        try:
+            u = ctypes.windll.user32
+            u.SetWindowPos.restype = ctypes.c_int
+            u.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_uint]
+            # SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE
+            u.SetWindowPos(ctypes.c_void_p(self._toplevel()), None, x, y, 0, 0, 0x0015)
+        except Exception:
+            self.root.geometry(f'+{x}+{y}')
 
     def _drag_end(self, _event):
         # 松手时补最后那个位置：最后一次 motion 可能被 12ms 限流丢掉了
         if self._drag_target is not None:
             x, y = self._drag_target
-            self.root.geometry(f'+{x}+{y}')
+            self._set_pos(x, y)
+            # 走的是 SetWindowPos，Tk 内部的位置记录要主动同步一次，
+            # 否则下次拖动的起点（读 winfo_x）会偏掉。
+            # 这里绝不能写 geometry('') —— 空字符串在 Tk 里表示「清除 geometry」，
+            # 窗口会缩回内容的自然尺寸（实测 220x42 变成 200x200）。
+            try:
+                self.root.geometry(f'+{x}+{y}')
+            except Exception:
+                pass
+        self._flush_drag_stats()
+
+    def _flush_drag_stats(self):
+        if len(self._drag_stamps) > 3:
+            gaps = sorted((b - a) * 1000.0
+                          for a, b in zip(self._drag_stamps, self._drag_stamps[1:]))
+            logging.info('拖动 %d 次移动，间隔 中位 %.1fms / 最大 %.1fms',
+                         len(self._drag_stamps), gaps[len(gaps) // 2], gaps[-1])
+        self._drag_stamps = []
         if self._drag and self._drag_moved:
             self._schedule_save_position()
         self._drag = None
@@ -520,6 +580,15 @@ class FloatBar:
             except Exception:
                 pass
             return
+        # 兜底收尾：用 SetWindowPos 移动窗口会让系统提前释放鼠标 capture，
+        # ButtonRelease 根本送不到 Tk —— 那样 _drag 永远不清空，窗口内容会
+        # 一直停在「拖动中」的纯色条状态。直接问系统左键还按不按着。
+        if self._drag is not None:
+            try:
+                if not (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000):
+                    self._drag_end(None)
+            except Exception:
+                pass
         # 拖动 / 缩放期间不刷新内容：每 200ms 一次 place() 会和拖动抢重绘，
         # 表现就是窗口一格一格地跟手。松手后的第一个 tick 会补上。
         if self._drag is None and self._resize is None:
@@ -527,6 +596,10 @@ class FloatBar:
             # 光靠 _drag_end 恢复会把窗口永远留成一个纯色条。
             if self._content_hidden:
                 self._show_content()
+            # _drag_end 不一定收得到 ButtonRelease（控件被压到 1x1 之后
+            # capture 有时会被系统提前释放），统计挂在这里保证一定输出
+            if self._drag_stamps:
+                self._flush_drag_stats()
             try:
                 self._render(self.backend.status())
                 self._render_failures = 0
