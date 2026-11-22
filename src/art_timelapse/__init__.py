@@ -19,7 +19,7 @@ from pathlib import Path
 #              taskkill / cmd 里能跑，但被编码问题咬的概率远高于收益。
 APP_NAME = 'Sai2-Timelapse'
 APP_TITLE = 'Sai2-Timelapse🔔'
-__version__ = '1.30'
+__version__ = '1.31'
 
 # 配置文件**不能跟着改名**：老用户的帧目录、导出设置、窗口位置全在这里，
 # 换个文件名等于让他们重配一遍。所以名字锁死在 .art-timelapse。

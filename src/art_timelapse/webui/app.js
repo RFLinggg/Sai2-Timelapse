@@ -1148,8 +1148,10 @@ function bind() {
 window.addEventListener('pywebviewready', async () => {
   bind();
   await bootstrap();
-  // 首帧渲染完再开始轮询，避免和 bootstrap 抢
-  setInterval(poll, 150);
+  // 首帧渲染完再开始轮询，避免和 bootstrap 抢。
+  // 150ms 一次跨进程 IPC，拖动窗口时 WebView2 的重绘和它叠在一起，肉眼就是
+  // 一顿一顿的。录制时长按秒显示，250ms 完全够，少四成的 IPC。
+  setInterval(poll, 250);
   watchResize();
 });
 

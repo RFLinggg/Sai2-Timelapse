@@ -66,8 +66,11 @@ class FloatBar:
         self.scale = DEFAULT_SCALE
         self._drag = None
         self._drag_moved = False
+        self._drag_target = None      # 最近一次鼠标位置算出的目标坐标
+        self._drag_job = None         # 合并 motion 用的 after 句柄
         self._resize = None
         self._save_job = None
+        self._render_failures = 0     # 连续刷新失败次数，用来限流 warning
         # 控件引用（_create_widgets 里填）
         self._edge = None
         self._body = None
@@ -396,12 +399,35 @@ class FloatBar:
         dy = event.y_root - self._drag[1]
         if abs(dx) > 2 or abs(dy) > 2:
             self._drag_moved = True
-        self.root.geometry(f'+{self._drag[2] + dx}+{self._drag[3] + dy}')
+        # 鼠标移动事件能到 125Hz。以前每次都直接 geometry()：等于每 8ms 一次
+        # SetWindowPos，而无边框窗口没有 DWM 缓存，每次都要整窗重绘 —— 拖起来
+        # 就是一格一格的。合并成每 8ms 一次，多个 motion 只取最后一个坐标。
+        self._drag_target = (self._drag[2] + dx, self._drag[3] + dy)
+        if self._drag_job is None:
+            self._drag_job = self.root.after(8, self._drag_apply)
+
+    def _drag_apply(self):
+        self._drag_job = None
+        if self._drag_target is None or self.root is None:
+            return
+        x, y = self._drag_target
+        self.root.geometry(f'+{x}+{y}')
 
     def _drag_end(self, _event):
+        if self._drag_job is not None:
+            try:
+                self.root.after_cancel(self._drag_job)
+            except Exception:
+                pass
+            self._drag_job = None
+        # 松手时把最后那个还没应用的位置补上，否则会停在倒数第二个采样点
+        if self._drag_target is not None:
+            x, y = self._drag_target
+            self.root.geometry(f'+{x}+{y}')
         if self._drag and self._drag_moved:
             self._schedule_save_position()
         self._drag = None
+        self._drag_target = None
 
     # ------------------------------------------------------------ 拖拽缩放
     def _resize_start(self, event):
@@ -473,10 +499,20 @@ class FloatBar:
             except Exception:
                 pass
             return
-        try:
-            self._render(self.backend.status())
-        except Exception:
-            logging.debug('Could not refresh the floating bar', exc_info=True)
+        # 拖动 / 缩放期间不刷新内容：每 200ms 一次 place() 会和拖动抢重绘，
+        # 表现就是窗口一格一格地跟手。松手后的第一个 tick 会补上。
+        if self._drag is None and self._resize is None:
+            try:
+                self._render(self.backend.status())
+                self._render_failures = 0
+            except Exception:
+                # 以前是 debug —— 默认日志级别是 INFO，等于从来没记录过。
+                # 2026-11-21 有用户的小窗一直停在「未录制」，查不到原因，
+                # 就是因为这条异常被彻底吞掉了。留证据，但 200ms 一次必须限流。
+                self._render_failures += 1
+                if self._render_failures == 1 or self._render_failures % 300 == 0:
+                    logging.warning('Could not refresh the floating bar (%d)',
+                                    self._render_failures, exc_info=True)
         try:
             self.root.after(200, self._tick)
         except tk.TclError:
