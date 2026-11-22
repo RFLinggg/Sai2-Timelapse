@@ -76,6 +76,7 @@ class FloatBar:
         self._content_hidden = False  # 拖动期间内容被藏起来了（只剩纯色底）
         self._last_move = 0.0         # 上次真正移动窗口的时刻（12ms 限流用）
         self._drag_stamps = []        # 每次移动的时刻，拖动结束汇总成间隔统计
+        self._release_votes = 0       # 连续读到「左键已松开」的 tick 数
         self._resize = None
         self._save_job = None
         self._render_failures = 0     # 连续刷新失败次数，用来限流 warning
@@ -403,6 +404,14 @@ class FloatBar:
         except Exception:
             x0, y0 = self.root.winfo_x(), self.root.winfo_y()
         self._drag_stamps = []
+        self._release_votes = 0
+        # 每次 SetWindowPos 都要把 SetWindowRgn 设的圆角区域重新套到新位置上，
+        # 实测这是那几十毫秒的一大半。拖动期间先撤掉区域换回矩形，松手再设回来。
+        try:
+            ctypes.windll.user32.SetWindowRgn(
+                ctypes.c_void_p(self._toplevel()), None, True)
+        except Exception:
+            pass
         self._drag = (event.x_root, event.y_root, x0, y0)
         self._drag_moved = False
         self._hide_content()
@@ -450,7 +459,13 @@ class FloatBar:
         self._last_move = now
         self._drag_stamps.append(now)
         x, y = self._drag_target
+        t0 = time.perf_counter()
         self._set_pos(x, y)
+        cost = (time.perf_counter() - t0) * 1000.0
+        if cost > 30:
+            # 单次移动就超过 30ms：说明是 SetWindowPos 本身被系统卡住，
+            # 不是我们丢帧，也不是 GIL。分开记录才能对症。
+            logging.warning('SetWindowPos 单次耗时 %.0fms', cost)
 
     def _win_pos(self) -> tuple[int, int]:
         rect = RECT_CLS()
@@ -508,6 +523,10 @@ class FloatBar:
             self._schedule_save_position()
         self._drag = None
         self._drag_target = None
+        try:
+            self._round_region(self._px(BASE_RADIUS))
+        except Exception:
+            pass
         self._show_content()
 
     # ------------------------------------------------------------ 拖拽缩放
@@ -585,8 +604,16 @@ class FloatBar:
         # 一直停在「拖动中」的纯色条状态。直接问系统左键还按不按着。
         if self._drag is not None:
             try:
-                if not (ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000):
-                    self._drag_end(None)
+                if ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
+                    self._release_votes = 0
+                else:
+                    # 连续 3 次 tick（600ms）都读到松开才收尾。单次读数不可靠
+                    # —— 模拟输入、或者切换窗口的瞬间都会误报，一误报就把拖动
+                    # 打断，用户得松手重按。
+                    self._release_votes += 1
+                    if self._release_votes >= 3:
+                        self._release_votes = 0
+                        self._drag_end(None)
             except Exception:
                 pass
         # 拖动 / 缩放期间不刷新内容：每 200ms 一次 place() 会和拖动抢重绘，
