@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import time
 import threading
 import tkinter as tk
 from tkinter import font as tkfont
@@ -68,7 +69,7 @@ class FloatBar:
         self._drag_moved = False
         self._drag_target = None      # 最近一次鼠标位置算出的目标坐标
         self._content_hidden = False  # 拖动期间内容被藏起来了（只剩纯色底）
-        self._drag_job = None         # 合并 motion 用的 after 句柄
+        self._last_move = 0.0         # 上次真正移动窗口的时刻（12ms 限流用）
         self._resize = None
         self._save_job = None
         self._render_failures = 0     # 连续刷新失败次数，用来限流 warning
@@ -425,28 +426,21 @@ class FloatBar:
         dy = event.y_root - self._drag[1]
         if abs(dx) > 2 or abs(dy) > 2:
             self._drag_moved = True
-        # 鼠标移动事件能到 125Hz。以前每次都直接 geometry()：等于每 8ms 一次
-        # SetWindowPos，而无边框窗口没有 DWM 缓存，每次都要整窗重绘 —— 拖起来
-        # 就是一格一格的。合并成每 8ms 一次，多个 motion 只取最后一个坐标。
+        # 不用 root.after() 做节流。Windows 的系统定时器粒度是 15.6ms，
+        # after(8) 实际落到 15.6~31ms，after(16) 同样会抖 —— 表现就是拖动
+        # 一顿一顿，而且怎么调参数都像是「帧率不够」。
+        # 改成在鼠标事件里按时间戳限流：事件一到立刻判断，12ms 内连发的多余
+        # 事件丢掉，其余立即移动。没有定时器排队，也没有精度问题。
         self._drag_target = (self._drag[2] + dx, self._drag[3] + dy)
-        if self._drag_job is None:
-            self._drag_job = self.root.after(8, self._drag_apply)
-
-    def _drag_apply(self):
-        self._drag_job = None
-        if self._drag_target is None or self.root is None:
+        now = time.perf_counter()
+        if now - self._last_move < 0.012:
             return
+        self._last_move = now
         x, y = self._drag_target
         self.root.geometry(f'+{x}+{y}')
 
     def _drag_end(self, _event):
-        if self._drag_job is not None:
-            try:
-                self.root.after_cancel(self._drag_job)
-            except Exception:
-                pass
-            self._drag_job = None
-        # 松手时把最后那个还没应用的位置补上，否则会停在倒数第二个采样点
+        # 松手时补最后那个位置：最后一次 motion 可能被 12ms 限流丢掉了
         if self._drag_target is not None:
             x, y = self._drag_target
             self.root.geometry(f'+{x}+{y}')
