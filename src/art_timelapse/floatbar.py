@@ -5,9 +5,7 @@
 * 第二个 WebView2 实例要再吃 ~50MB 内存，而这里只有几个文字和三个按钮；
 * Tk 能用 ``SetWindowRgn`` 裁出真圆角窗口（区域外完全不属于窗口），
   WebView2 的 frameless 窗口是矩形，想做出「浮在桌面上的小卡片」得走分层窗口；
-* 拖动交给 Windows 自己的拖动循环（``WM_NCLBUTTONDOWN`` + ``HTCAPTION``）。
-  无边框窗口没有 DWM 合成缓存，自己用 ``B1-Motion`` 搬 geometry 的话，
-  每次移动都要重画整个客户区，拖起来是一格一格的。
+* 拖动在 Tk 里就是 ``B1-Motion`` 改 geometry，不用跨进程 IPC。
 
 线程模型：Tk 必须在自己的线程里跑 mainloop，而主线程被 ``webview.start()`` 占着，
 所以这里起一个 daemon 线程跑 Tk。跨线程访问 backend 是安全的 ——
@@ -73,7 +71,6 @@ class FloatBar:
         self._resize = None
         self._save_job = None
         self._render_failures = 0     # 连续刷新失败次数，用来限流 warning
-        self._native_drag_warned = False
         # 控件引用（_create_widgets 里填）
         self._edge = None
         self._body = None
@@ -391,58 +388,9 @@ class FloatBar:
 
     # ------------------------------------------------------------ 拖动窗口
     def _drag_start(self, event):
-        # 交给系统：把 WM_NCLBUTTONDOWN 连同 HTCAPTION 发给窗口，Windows 会接管
-        # 整个拖动过程 —— 走的是和「拖资源管理器窗口」完全相同的那条路径，
-        # DWM 直接平移缓存的位图，代价接近零。
-        #
-        # 自己用 B1-Motion 搬 geometry 做不到这个：overrideredirect 窗口没有
-        # DWM 合成缓存，每次 SetWindowPos 都要重绘客户区里的 8 个控件。
-        # 2026-11-22 实测，鼠标 125Hz ⇒ 每秒上百次重绘，节流到 60Hz 仍然卡。
-        if self._native_drag():
-            return 'break'
-        # 退路：拿不到句柄（非 Windows、或 Tk 返回了内部 child）时用坐标增量法
         self._drag = (event.x_root, event.y_root,
                       self.root.winfo_x(), self.root.winfo_y())
         self._drag_moved = False
-
-    def _native_drag(self) -> bool:
-        """把拖动交给系统，成功返回 True —— 此时拖动**已经结束**。
-
-        ``SendMessage`` 是阻塞的，一直到用户松手才返回。这意味着拖动期间
-        Tk 的定时器全部停摆，悬浮窗内容不会被重排，正好是想要的。
-        """
-        try:
-            u = ctypes.windll.user32
-            # 句柄和消息参数都必须显式声明类型：64 位下默认按 c_int 传会截断，
-            # 表现是「拖动毫无反应」或窗口瞬间跳到屏幕角落。
-            u.GetAncestor.restype = ctypes.c_void_p
-            u.GetAncestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
-            u.SendMessageW.restype = ctypes.c_ssize_t
-            u.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint,
-                                       ctypes.c_size_t, ctypes.c_ssize_t]
-            # GA_ROOT：winfo_id() 在无边框 toplevel 上一般就是顶层，但多往上
-            # 找一层更稳，拿到 child 的话整窗会跟着偏移。
-            hwnd = u.GetAncestor(ctypes.c_void_p(self.root.winfo_id()), 2)
-            if not hwnd:
-                return False
-            u.ReleaseCapture()
-            u.SendMessageW(ctypes.c_void_p(hwnd), 0x00A1, 2, 0)
-        except Exception:
-            # 失败会退回坐标增量法（还能拖，只是不顺），所以这里不致命。
-            # 但必须留一条可见的记录：否则用户说「还是卡」，分不清是系统拖动
-            # 没生效，还是生效了但另有瓶颈。只报第一次。
-            if not self._native_drag_warned:
-                self._native_drag_warned = True
-                logging.warning('Could not hand the drag to Windows, falling back',
-                                exc_info=True)
-            return False
-        # 拖动期间 _tick 被卡住，这里补一次，别让状态停在拖动前的样子
-        try:
-            self._render(self.backend.status())
-        except Exception:
-            pass
-        self._schedule_save_position()
-        return True
 
     def _drag_move(self, event):
         if not self._drag:
@@ -453,11 +401,10 @@ class FloatBar:
             self._drag_moved = True
         # 鼠标移动事件能到 125Hz。以前每次都直接 geometry()：等于每 8ms 一次
         # SetWindowPos，而无边框窗口没有 DWM 缓存，每次都要整窗重绘 —— 拖起来
-        # 就是一格一格的。这里合并成 60Hz（16ms）：一帧内的多个 motion 只取
-        # 最后一个坐标。注意别写 8ms —— 那正好等于事件间隔，等于没合并。
+        # 就是一格一格的。合并成每 8ms 一次，多个 motion 只取最后一个坐标。
         self._drag_target = (self._drag[2] + dx, self._drag[3] + dy)
         if self._drag_job is None:
-            self._drag_job = self.root.after(16, self._drag_apply)
+            self._drag_job = self.root.after(8, self._drag_apply)
 
     def _drag_apply(self):
         self._drag_job = None
