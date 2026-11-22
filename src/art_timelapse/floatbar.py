@@ -67,6 +67,7 @@ class FloatBar:
         self._drag = None
         self._drag_moved = False
         self._drag_target = None      # 最近一次鼠标位置算出的目标坐标
+        self._content_hidden = False  # 拖动期间内容被藏起来了（只剩纯色底）
         self._drag_job = None         # 合并 motion 用的 after 句柄
         self._resize = None
         self._save_job = None
@@ -391,6 +392,31 @@ class FloatBar:
         self._drag = (event.x_root, event.y_root,
                       self.root.winfo_x(), self.root.winfo_y())
         self._drag_moved = False
+        self._hide_content()
+
+    def _hide_content(self):
+        """拖动期间把内容藏起来，只留一个纯色圆角条。
+
+        overrideredirect 窗口没有 DWM 合成缓存，每次 SetWindowPos 都要重画
+        整个客户区。8 个控件和 1 个背景 Frame 的差距很大 —— 这是不碰 Win32
+        消息循环（试过，Tk 会在 modal 拖动循环里重入然后崩）能得到的最实在
+        的收益。松手后 _layout() 会把它们全部摆回去。
+        """
+        if self._content_hidden:
+            return
+        self._content_hidden = True
+        # 不能 place_forget：按住的那个 widget 一旦被 unmap，Tk 的隐式 grab
+        # 就没了，之后的 B1-Motion 一条都收不到（实测位移 0，窗口纹丝不动）。
+        # 改成压到 1x1 挪到客户区外 —— 控件仍在、grab 仍在，但重绘成本接近零。
+        for widget in (self._dot, self._status_lbl, self._time_lbl,
+                       self._frame_lbl, self._main_btn, self._stop_btn, self._grip):
+            widget.place(x=-20, y=-20, width=1, height=1)
+
+    def _show_content(self):
+        if not self._content_hidden:
+            return
+        self._content_hidden = False
+        self._layout(self.root.winfo_width(), self.root.winfo_height())
 
     def _drag_move(self, event):
         if not self._drag:
@@ -428,6 +454,7 @@ class FloatBar:
             self._schedule_save_position()
         self._drag = None
         self._drag_target = None
+        self._show_content()
 
     # ------------------------------------------------------------ 拖拽缩放
     def _resize_start(self, event):
@@ -502,6 +529,10 @@ class FloatBar:
         # 拖动 / 缩放期间不刷新内容：每 200ms 一次 place() 会和拖动抢重绘，
         # 表现就是窗口一格一格地跟手。松手后的第一个 tick 会补上。
         if self._drag is None and self._resize is None:
+            # 兜底：鼠标在窗口外松开、或者按 Alt+Tab 切走时收不到 ButtonRelease，
+            # 光靠 _drag_end 恢复会把窗口永远留成一个纯色条。
+            if self._content_hidden:
+                self._show_content()
             try:
                 self._render(self.backend.status())
                 self._render_failures = 0
