@@ -3,8 +3,8 @@
 为什么用 Tk 而不是第二个 WebView2 窗口：
 
 * 第二个 WebView2 实例要再吃 ~50MB 内存，而这里只有几个文字和三个按钮；
-* Tk 能用 ``SetWindowRgn`` 裁出真圆角窗口（区域外完全不属于窗口），
-  WebView2 的 frameless 窗口是矩形，想做出「浮在桌面上的小卡片」得走分层窗口；
+* 窗口是矩形。曾经用 ``SetWindowRgn`` 裁圆角，但那让每次移动都要重新套一次
+  区域，实测单次 SetWindowPos 多花 20~40ms —— 拖起来一顿一顿的，不值得；
 * 拖动在 Tk 里就是 ``B1-Motion`` 改 geometry，不用跨进程 IPC。
 
 线程模型：Tk 必须在自己的线程里跑 mainloop，而主线程被 ``webview.start()`` 占着，
@@ -75,7 +75,6 @@ class FloatBar:
         self._drag_target = None      # 最近一次鼠标位置算出的目标坐标
         self._content_hidden = False  # 拖动期间内容被藏起来了（只剩纯色底）
         self._last_move = 0.0         # 上次真正移动窗口的时刻（12ms 限流用）
-        self._drag_stamps = []        # 每次移动的时刻，拖动结束汇总成间隔统计
         self._release_votes = 0       # 连续读到「左键已松开」的 tick 数
         self._resize = None
         self._save_job = None
@@ -205,7 +204,6 @@ class FloatBar:
         self._body.place(x=pad, y=pad, width=w - pad * 2, height=h - pad * 2)
 
         self._layout(w, h)
-        self._round_region(self._px(BASE_RADIUS))
 
     def _layout(self, w: int, h: int):
         """流式排布：文字从左边往右排，按钮从右边往左排，中间让给文字。"""
@@ -403,21 +401,13 @@ class FloatBar:
             x0, y0 = self._win_pos()
         except Exception:
             x0, y0 = self.root.winfo_x(), self.root.winfo_y()
-        self._drag_stamps = []
         self._release_votes = 0
-        # 每次 SetWindowPos 都要把 SetWindowRgn 设的圆角区域重新套到新位置上，
-        # 实测这是那几十毫秒的一大半。拖动期间先撤掉区域换回矩形，松手再设回来。
-        try:
-            ctypes.windll.user32.SetWindowRgn(
-                ctypes.c_void_p(self._toplevel()), None, True)
-        except Exception:
-            pass
         self._drag = (event.x_root, event.y_root, x0, y0)
         self._drag_moved = False
         self._hide_content()
 
     def _hide_content(self):
-        """拖动期间把内容藏起来，只留一个纯色圆角条。
+        """拖动期间把内容藏起来，只留一个纯色矩形。
 
         overrideredirect 窗口没有 DWM 合成缓存，每次 SetWindowPos 都要重画
         整个客户区。8 个控件和 1 个背景 Frame 的差距很大 —— 这是不碰 Win32
@@ -427,12 +417,14 @@ class FloatBar:
         if self._content_hidden:
             return
         self._content_hidden = True
-        # 不能 place_forget：按住的那个 widget 一旦被 unmap，Tk 的隐式 grab
-        # 就没了，之后的 B1-Motion 一条都收不到（实测位移 0，窗口纹丝不动）。
-        # 改成压到 1x1 挪到客户区外 —— 控件仍在、grab 仍在，但重绘成本接近零。
+        # 只挪位置，绝不动 width/height。
+        # 之前写的是 place(x=-20, y=-20, width=1, height=1) —— 顺手把尺寸也改
+        # 成了 1x1，而 _layout() 恢复时只指定 x/y，于是 3 个 Label 永远停在
+        # 1 像素：拖动过一次之后「未录制」「0:00」「N 帧」全部消失。
+        # 也不能用 place_forget()：unmap 会丢掉隐式 grab，拖动直接失灵。
         for widget in (self._dot, self._status_lbl, self._time_lbl,
                        self._frame_lbl, self._main_btn, self._stop_btn, self._grip):
-            widget.place(x=-20, y=-20, width=1, height=1)
+            widget.place(x=-2000, y=-2000)
 
     def _show_content(self):
         if not self._content_hidden:
@@ -457,15 +449,8 @@ class FloatBar:
         if now - self._last_move < 0.012:
             return
         self._last_move = now
-        self._drag_stamps.append(now)
         x, y = self._drag_target
-        t0 = time.perf_counter()
         self._set_pos(x, y)
-        cost = (time.perf_counter() - t0) * 1000.0
-        if cost > 30:
-            # 单次移动就超过 30ms：说明是 SetWindowPos 本身被系统卡住，
-            # 不是我们丢帧，也不是 GIL。分开记录才能对症。
-            logging.warning('SetWindowPos 单次耗时 %.0fms', cost)
 
     def _win_pos(self) -> tuple[int, int]:
         rect = RECT_CLS()
@@ -510,23 +495,11 @@ class FloatBar:
                 self.root.geometry(f'+{x}+{y}')
             except Exception:
                 pass
-        self._flush_drag_stats()
 
-    def _flush_drag_stats(self):
-        if len(self._drag_stamps) > 3:
-            gaps = sorted((b - a) * 1000.0
-                          for a, b in zip(self._drag_stamps, self._drag_stamps[1:]))
-            logging.info('拖动 %d 次移动，间隔 中位 %.1fms / 最大 %.1fms',
-                         len(self._drag_stamps), gaps[len(gaps) // 2], gaps[-1])
-        self._drag_stamps = []
         if self._drag and self._drag_moved:
             self._schedule_save_position()
         self._drag = None
         self._drag_target = None
-        try:
-            self._round_region(self._px(BASE_RADIUS))
-        except Exception:
-            pass
         self._show_content()
 
     # ------------------------------------------------------------ 拖拽缩放
@@ -607,11 +580,10 @@ class FloatBar:
                 if ctypes.windll.user32.GetAsyncKeyState(0x01) & 0x8000:
                     self._release_votes = 0
                 else:
-                    # 连续 3 次 tick（600ms）都读到松开才收尾。单次读数不可靠
-                    # —— 模拟输入、或者切换窗口的瞬间都会误报，一误报就把拖动
-                    # 打断，用户得松手重按。
+                    # 连续 2 次 tick（400ms）都读到松开才收尾。单次读数不可靠，
+                    # 误报一次就会把拖动打断、内容也迟迟不恢复。
                     self._release_votes += 1
-                    if self._release_votes >= 3:
+                    if self._release_votes >= 2:
                         self._release_votes = 0
                         self._drag_end(None)
             except Exception:
@@ -623,10 +595,7 @@ class FloatBar:
             # 光靠 _drag_end 恢复会把窗口永远留成一个纯色条。
             if self._content_hidden:
                 self._show_content()
-            # _drag_end 不一定收得到 ButtonRelease（控件被压到 1x1 之后
-            # capture 有时会被系统提前释放），统计挂在这里保证一定输出
-            if self._drag_stamps:
-                self._flush_drag_stats()
+
             try:
                 self._render(self.backend.status())
                 self._render_failures = 0
