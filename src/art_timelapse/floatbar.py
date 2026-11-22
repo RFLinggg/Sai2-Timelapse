@@ -250,9 +250,13 @@ class FloatBar:
         self._frame_lbl.configure(font=('Microsoft YaHei UI', fs_small))
 
         # 文字宽度用 measure 算，别问 widget —— 这时它还没排过版，reqwidth 是旧值
-        f_status = tkfont.Font(family='Microsoft YaHei UI', size=fs_status)
-        f_time = tkfont.Font(family='Consolas', size=fs_time, weight='bold')
-        f_small = tkfont.Font(family='Microsoft YaHei UI', size=fs_small)
+        # 必须显式传 root。不传的话 tkfont 会去读 tkinter 的全局 _default_root，
+        # 而悬浮窗跑在子线程：备用界面（Tk）模式下主线程已经有一个 root，
+        # 这个全局变量指向那边；某些时机它干脆是 None，于是直接
+        # RuntimeError: Too early to use font: no default root window。
+        f_status = tkfont.Font(root=self.root, family='Microsoft YaHei UI', size=fs_status)
+        f_time = tkfont.Font(root=self.root, family='Consolas', size=fs_time, weight='bold')
+        f_small = tkfont.Font(root=self.root, family='Microsoft YaHei UI', size=fs_small)
 
         status_w = f_status.measure(self._status_lbl.cget('text') or '未录制')
         time_w = f_time.measure(self._time_lbl.cget('text') or '0:00')

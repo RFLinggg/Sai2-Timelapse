@@ -1,4 +1,4 @@
-Sai2-Timelapse v1.36（Windows 64 位）
+Sai2-Timelapse v1.37（Windows 64 位）
 
 免安装。解压到任意目录（不要放进 C://Program Files 这类需要管理员权限的位置），
 双击 Sai2-Timelapse.exe 即可运行。
